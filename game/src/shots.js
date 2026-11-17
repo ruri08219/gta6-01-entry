@@ -1,79 +1,112 @@
-// The screenshot scenes behind ?shot=start|play|end. Each one plays the real rules forward from a
-// fresh world for a fixed number of steps, steered by a simple autopilot (look ahead each way the
-// paddle could move, keep clear of blocks, chase the lowest coin when that is safe), so the frame
-// is what a short game really looks like and the same seed always gives the same frame.
-import { FIELD, PLAYER, STEP } from './config.js';
-import { EVENT_OVER, KIND_BLOCK } from './world.js';
+// The deterministic screenshot scenes behind ?shot=start|play|chase|mission.
+// Each one plays the real rules forward from a fresh world for a fixed number
+// of steps, steered by a small scripted driver, so the frame is what a short
+// game really looks like and the same seed always gives the same frame.
+import { STEP } from './entities.js';
 import { SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE } from './render.js';
 
-const START_SECONDS = 5;
-const PLAY_SECONDS = 26;
-const END_LIMIT_SECONDS = 600;
-/**
- * How far ahead, in seconds, the autopilot checks each way it could move: the play scene's pilot
- * looks well ahead and keeps all its lives; the end scene's looks only a moment ahead, so it is
- * caught out once the blocks speed up, as a hurried player is.
- */
-const HORIZON_PLAY = 0.7;
-const HORIZON_END = 0.25;
-const SAMPLE = 1 / 30;
-const DIRECTIONS = [0, -1, 1];
-/** Extra room, each side, it keeps between the paddle and a block. */
-const MARGIN = 10;
-
-/** Seconds until moving in `direction` (-1, 0, 1) runs the paddle into a block; Infinity when it never does. */
-function timeToHit(state, direction, horizon) {
-  const player = state.player;
-  for (let t = SAMPLE; t <= horizon; t += SAMPLE) {
-    const x = Math.min(FIELD.width - player.width, Math.max(0, player.x + direction * PLAYER.speed * t));
-    for (let index = 0; index < state.items.length; index += 1) {
-      const item = state.items[index];
-      if (!item.active || item.kind !== KIND_BLOCK) continue;
-      const y = item.y + item.speed * t;
-      if (y + item.height > player.y && y < player.y + player.height && item.x < x + player.width + MARGIN && item.x + item.width > x - MARGIN) return t;
-    }
-  }
-  return Infinity;
+// A fake keyboard: the staged scenes drive with this instead of real keys.
+function scriptedInput(moves) {
+  let frame = 0;
+  return {
+    move() {
+      let m = moves[Math.min(frame, moves.length - 1)] || { x: 0, y: 0 };
+      if (typeof m === 'function') m = m();
+      return { x: m.x || 0, y: m.y || 0 };
+    },
+    throttle() {
+      const m = moves[Math.min(frame, moves.length - 1)] || {};
+      return !!m.throttle;
+    },
+    brake() {
+      const m = moves[Math.min(frame, moves.length - 1)] || {};
+      return !!m.brake;
+    },
+    steer() {
+      const m = moves[Math.min(frame, moves.length - 1)] || {};
+      return m.steer || 0;
+    },
+    tick() { frame += 1; },
+  };
 }
 
-/** Of the safe ways to move, the one toward the lowest coin (or the centre); else the one that is hit last. */
-function autopilot(state, horizon) {
-  const player = state.player;
-  let coin = null;
-  for (let index = 0; index < state.items.length; index += 1) {
-    const item = state.items[index];
-    if (item.active && item.kind !== KIND_BLOCK && (coin === null || item.y > coin.y)) coin = item;
+function driveScript(seconds, steerWave) {
+  const moves = [];
+  const n = Math.floor(seconds / STEP);
+  for (let i = 0; i < n; i += 1) {
+    moves.push({ throttle: true, steer: Math.sin(i * 0.02) * steerWave });
   }
-  const target = coin === null ? FIELD.width / 2 : coin.x + coin.width / 2;
-  const centre = player.x + player.width / 2;
-  const wanted = target > centre + 8 ? 1 : target < centre - 8 ? -1 : 0;
-  let best = wanted;
-  let bestTime = timeToHit(state, wanted, horizon);
-  for (let index = 0; index < DIRECTIONS.length && bestTime !== Infinity; index += 1) {
-    const time = timeToHit(state, DIRECTIONS[index], horizon);
-    if (time > bestTime) {
-      bestTime = time;
-      best = DIRECTIONS[index];
-    }
-  }
-  return best;
+  return moves;
 }
 
-/**
- * Set `world` to the named scene (start, play or end; any other name is start) and return the
- * screen to draw over it and the best score to show.
- */
-export function stageShot(name, world) {
-  world.reset();
-  if (name !== 'play' && name !== 'end') {
-    for (let index = 0; index < START_SECONDS / STEP; index += 1) world.step(STEP, 0, true);
-    return { screen: SCREEN_TITLE, best: 0 };
+function walkToward(game, tx, ty, seconds) {
+  const moves = [];
+  const n = Math.floor(seconds / STEP);
+  for (let i = 0; i < n; i += 1) {
+    moves.push(() => {
+      const p = game.state.player;
+      const dx = tx - p.x;
+      const dy = ty - p.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d < 30) return { x: 0, y: 0 };
+      return { x: dx / d, y: dy / d };
+    });
   }
-  const limit = name === 'end' ? END_LIMIT_SECONDS : PLAY_SECONDS;
-  const horizon = name === 'end' ? HORIZON_END : HORIZON_PLAY;
-  for (let index = 0; index < limit / STEP; index += 1) {
-    if (world.step(STEP, autopilot(world.state, horizon), false) & EVENT_OVER) break;
+  return moves;
+}
+
+function runSteps(game, input, seconds, actions) {
+  const n = Math.floor(seconds / STEP);
+  for (let i = 0; i < n; i += 1) {
+    game.step(STEP, input, actions || {});
+    if (input.tick) input.tick();
   }
-  const over = world.state.lives === 0;
-  return { screen: over ? SCREEN_OVER : SCREEN_PLAY, best: world.state.score };
+}
+
+// Put Rook beside a parked car and get in, the way a player would.
+function getInCar(game) {
+  const car = game.state.cars.find((c) => c.owner === 'parked');
+  if (!car) return;
+  game.state.player.x = car.x - 30;
+  game.state.player.y = car.y;
+  const idle = scriptedInput([]);
+  game.step(STEP, idle, { enter: true });
+}
+
+export function stageShot(name, game) {
+  game.reset(true);
+  const idle = scriptedInput([]);
+  if (name === 'play') {
+    runSteps(game, idle, 1, { confirm: true });
+    getInCar(game);
+    runSteps(game, scriptedInput(driveScript(9, 0.25)), 9, {});
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'chase') {
+    runSteps(game, idle, 1, { confirm: true });
+    getInCar(game);
+    game.state.wanted = 3.2;
+    game.state.crimeTimer = 0;
+    runSteps(game, scriptedInput(driveScript(7, 0.4)), 7, {});
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'mission') {
+    runSteps(game, idle, 1, { confirm: true });
+    const market = game.state.city.market;
+    game.state.player.x = market.x - 260;
+    game.state.player.y = market.y + 40;
+    runSteps(game, scriptedInput(walkToward(game, market.x, market.y, 4)), 4, {});
+    return { screen: SCREEN_PLAY };
+  }
+  if (name === 'end') {
+    runSteps(game, idle, 1, { confirm: true });
+    getInCar(game);
+    game.state.wanted = 5;
+    game.state.player.health = 12;
+    runSteps(game, scriptedInput(driveScript(6, 0.5)), 6, {});
+    return { screen: game.state.gameOver ? SCREEN_OVER : SCREEN_PLAY };
+  }
+  // Default: the title screen over a living city.
+  runSteps(game, idle, 5, {});
+  return { screen: SCREEN_TITLE };
 }

@@ -1,53 +1,72 @@
-// Keyboard and pointer input. Held keys give a steering direction; one-shot presses (start or
-// restart, pause) are queued as bit flags and taken once by the loop, so a press between two
-// frames is never lost and never counted twice.
+// Keyboard and mouse input for Vice Shores: held keys for movement and driving,
+// edge-triggered actions the loop consumes once per press.
+export const ACT_ENTER = 1;
+export const ACT_PUNCH = 2;
+export const ACT_PAUSE = 4;
+export const ACT_CONFIRM = 8;
+export const ACT_HORN = 16;
 
-export const ACTION_CONFIRM = 1;
-export const ACTION_PAUSE = 2;
+export function createInput(canvas) {
+  const keys = new Set();
+  let queued = 0;
 
-const LEFT = new Set(['ArrowLeft', 'KeyA']);
-const RIGHT = new Set(['ArrowRight', 'KeyD']);
-const CONFIRM = new Set(['Space', 'Enter']);
-const PAUSE = new Set(['KeyP', 'Escape']);
+  function onDown(e) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+      e.preventDefault();
+    }
+    if (e.repeat) return;
+    keys.add(e.code);
+    if (e.code === 'KeyE') queued |= ACT_ENTER;
+    if (e.code === 'Space') queued |= ACT_PUNCH;
+    if (e.code === 'KeyP' || e.code === 'Escape') queued |= ACT_PAUSE;
+    if (e.code === 'Enter') queued |= ACT_CONFIRM;
+    if (e.code === 'KeyH') queued |= ACT_HORN;
+  }
 
-export function createInput(target) {
-  let left = false;
-  let right = false;
-  let actions = 0;
+  function onUp(e) {
+    keys.delete(e.code);
+  }
 
-  window.addEventListener('keydown', (event) => {
-    if (LEFT.has(event.code)) left = true;
-    else if (RIGHT.has(event.code)) right = true;
-    else if (CONFIRM.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_CONFIRM;
-    } else if (PAUSE.has(event.code)) {
-      if (!event.repeat) actions |= ACTION_PAUSE;
-    } else return;
-    event.preventDefault();
-  });
-  window.addEventListener('keyup', (event) => {
-    if (LEFT.has(event.code)) left = false;
-    else if (RIGHT.has(event.code)) right = false;
-  });
-  // A key released while the tab is hidden never sends keyup: let go of everything on blur.
-  window.addEventListener('blur', () => {
-    left = false;
-    right = false;
-  });
-  target.addEventListener('pointerdown', () => {
-    actions |= ACTION_CONFIRM;
-  });
+  function onClick() {
+    queued |= ACT_CONFIRM;
+  }
+
+  window.addEventListener('keydown', onDown);
+  window.addEventListener('keyup', onUp);
+  canvas.addEventListener('mousedown', onClick);
+  window.addEventListener('blur', () => keys.clear());
 
   return {
-    /** -1 for left, 1 for right, 0 for neither or both. */
-    direction() {
-      return (right ? 1 : 0) - (left ? 1 : 0);
+    // Walk vector from WASD / arrows, normalised.
+    move() {
+      let x = 0;
+      let y = 0;
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
+      if (keys.has('KeyW') || keys.has('ArrowUp')) y -= 1;
+      if (keys.has('KeyS') || keys.has('ArrowDown')) y += 1;
+      if (x !== 0 && y !== 0) {
+        x *= Math.SQRT1_2;
+        y *= Math.SQRT1_2;
+      }
+      return { x, y };
     },
-    /** The one-shot presses since the last call, as ACTION_* flags. */
+    throttle() {
+      return keys.has('KeyW') || keys.has('ArrowUp');
+    },
+    brake() {
+      return keys.has('KeyS') || keys.has('ArrowDown');
+    },
+    steer() {
+      let s = 0;
+      if (keys.has('KeyA') || keys.has('ArrowLeft')) s -= 1;
+      if (keys.has('KeyD') || keys.has('ArrowRight')) s += 1;
+      return s;
+    },
     takeActions() {
-      const taken = actions;
-      actions = 0;
-      return taken;
+      const a = queued;
+      queued = 0;
+      return a;
     },
   };
 }
