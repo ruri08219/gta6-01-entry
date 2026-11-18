@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solara Bay — Sun City Stories</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="./style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<div id="hud">
+  <div id="hud-top-left">
+    <div id="hud-cash">$0</div>
+    <div id="hud-debt">Debt left: $50,000</div>
+    <div id="hud-health"><div id="hud-health-fill"></div></div>
+    <div id="hud-speed"></div>
+  </div>
+  <div id="hud-top-right">
+    <div id="hud-stars">☆☆☆☆☆</div>
+    <div id="hud-wanted-label">BAY PD</div>
+  </div>
+  <div id="hud-top-center">
+    <div id="hud-mission-title">Solara Bay</div>
+    <div id="hud-mission">Welcome to Solara Bay.</div>
+  </div>
+  <div id="hud-feed"></div>
+  <canvas id="minimap" width="190" height="190"></canvas>
+  <div id="hud-hint">WASD move / drive &nbsp;•&nbsp; SHIFT run &nbsp;•&nbsp; E enter / exit car &nbsp;•&nbsp; drag mouse: camera &nbsp;•&nbsp; click: shoot &nbsp;•&nbsp; SPACE jump &nbsp;•&nbsp; P pause &nbsp;•&nbsp; M mute</div>
+</div>
+
+<div id="overlay">
+  <div id="overlay-panel">
+    <h1 id="overlay-title">SOLARA BAY</h1>
+    <p id="overlay-text"></p>
+    <div id="overlay-buttons">
+      <button id="btn-new">New Game</button>
+      <button id="btn-continue" class="hidden">Continue</button>
+      <button id="btn-resume" class="hidden">Resume</button>
+      <button id="btn-save" class="hidden">Save Progress</button>
+      <button id="btn-how">How to Play</button>
+    </div>
+    <div id="how-panel" class="hidden">
+      <b>Controls</b><br>
+      WASD — walk / drive &nbsp;•&nbsp; SHIFT — run &nbsp;•&nbsp; E — steal / enter / exit car<br>
+      Mouse drag — orbit camera &nbsp;•&nbsp; Click — shoot &nbsp;•&nbsp; SPACE — jump<br>
+      P — pause &nbsp;•&nbsp; M — mute<br><br>
+      <b>The job</b><br>
+      Six missions pay down Rico's $50,000 debt to Delia Cross. Steal cars,
+      deliver packages, settle scores, lose the Bay PD heat and pull the vault job.
+      Wanted stars rise with every crime — lay low and they cool off.
+      Progress saves to this browser automatically.
+    </div>
+    <div id="overlay-foot">SOLARA BAY — an original game. No real city, person or brand appears in it.</div>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
