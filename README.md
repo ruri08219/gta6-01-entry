@@ -1,8 +1,8 @@
 # Solara Bay — Sun City Stories
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Game: Solara Bay](https://img.shields.io/badge/Game-Solara%20Bay-orange.svg)](game/index.html)
-[![make.fun](https://img.shields.io/badge/make.fun-gta6--01-blue.svg)](https://make.fun)
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/ruri08219/gta6-01-entry/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/ruri08219/gta6-01-entry/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
 A complete 3D open-world crime game built for the make.fun **gta6-01 "Make GTA 6"**
 competition — an original city, story and cast, running entirely from static
